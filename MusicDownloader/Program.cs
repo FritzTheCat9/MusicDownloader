@@ -108,13 +108,6 @@ using (var driver = new ChromeDriver(fullDriverPath))
     Console.ReadKey();
 }
 
-//static void WriteMessage(string message, ConsoleColor color)
-//{
-//    Console.ForegroundColor = color;
-//    Console.WriteLine(message);
-//    Console.ForegroundColor = ConsoleColor.White;
-//}
-
 static List<string> GetLinksFromFile(string file)
 {
     Log.Information($"Reading file: {file}");

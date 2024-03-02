@@ -3,7 +3,12 @@ using OpenQA.Selenium.Chrome;
 using OpenQA.Selenium.Support.UI;
 using Serilog;
 
-YoutubeDownloader.DownloadAudio("https://www.youtube.com/watch?v=MdF72GqEJkI", "../../../Downloaded");
+var links = GetLinksFromFile($"links.txt");
+
+foreach (var link in links)
+{
+    YoutubeDownloader.DownloadAudio(link, "../../../Downloaded");
+}
 
 Console.ReadKey();
 

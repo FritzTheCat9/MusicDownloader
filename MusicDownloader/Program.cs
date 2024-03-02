@@ -3,74 +3,87 @@ using OpenQA.Selenium.Chrome;
 using OpenQA.Selenium.Support.UI;
 using Serilog;
 
-var website = "https://ytmp3.nu/29M3/";
-var inputId = "url";
-var searchButtonSelector = "/html/body/form/div[2]/input[2]";
-var downloadButtonSelector = "/html/body/form/div[2]/a[1]";
+YoutubeDownloader.DownloadAudio("https://www.youtube.com/watch?v=MdF72GqEJkI", "../../../Downloaded");
 
-var downloadsFolderPath = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) + "\\Downloads";
+Console.ReadKey();
 
-Log.Logger = new LoggerConfiguration()
-    .WriteTo.File("../../../logs.txt")
-    .WriteTo.Console()
-    .MinimumLevel.Information()
-    .CreateLogger();
-
-Log.Information("Music Downloader");
-
-var links = GetLinksFromFile($"links.txt");
-var notDownloadedLinks = new List<string>();
-var downloadedSongsFolder = "../../../Downloaded";
-var fullDriverPath = Path.GetFullPath("../../../chromedriver.exe");
-var errorLinksFile = "errorLinks.txt";
-
-var options = new ChromeOptions();
-options.AddArgument("--headless");
-
-using (var driver = new ChromeDriver(fullDriverPath))
+void DownloadLinksWithWebsite()
 {
-    var wait = new WebDriverWait(driver, TimeSpan.FromSeconds(30));
+    var website = "https://ytmp3.nu/29M3/";
+    var inputId = "url";
+    var searchButtonSelector = "/html/body/form/div[2]/input[2]";
+    var downloadButtonSelector = "/html/body/form/div[2]/a[1]";
 
-    foreach (var link in links)
+    var downloadsFolderPath = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) + "\\Downloads";
+
+    Log.Logger = new LoggerConfiguration()
+        .WriteTo.File("../../../logs.txt")
+        .WriteTo.Console()
+        .MinimumLevel.Information()
+        .CreateLogger();
+
+    Log.Information("Music Downloader");
+
+    var links = GetLinksFromFile($"links.txt");
+    var notDownloadedLinks = new List<string>();
+    var downloadedSongsFolder = "../../../Downloaded";
+    var fullDriverPath = Path.GetFullPath("../../../chromedriver.exe");
+    var errorLinksFile = "errorLinks.txt";
+
+    var options = new ChromeOptions();
+    options.AddArgument("--headless");
+
+    using (var driver = new ChromeDriver(fullDriverPath))
     {
-        try
+        var wait = new WebDriverWait(driver, TimeSpan.FromSeconds(30));
+
+        foreach (var link in links)
         {
-            driver.Navigate()
-                  .GoToUrl(website);
-
-            var textField = driver.FindElement(By.Id(inputId));
-            if (textField.Displayed)
-                textField.SendKeys(link);
-
-            var searchButton = driver.FindElement(By.XPath(searchButtonSelector));
-            if (searchButton.Displayed)
-                searchButton.Click();
-
-            var downloadButton = wait.Until(SeleniumExtras.WaitHelpers.ExpectedConditions.ElementIsVisible(By.XPath(downloadButtonSelector)));
-            if (downloadButton.Displayed)
-                downloadButton.Click();
-
-            Thread.Sleep(15000);
-
-            var targetDirectory = new DirectoryInfo(downloadsFolderPath);
-            var files = targetDirectory.GetFiles();
-
-            files = files.Where(file => !file.Attributes.HasFlag(FileAttributes.Directory)).ToArray();
-
-            if (files.Length > 0)
+            try
             {
-                var newestFile = files.OrderByDescending(file => file.CreationTime)
-                                      .FirstOrDefault();
+                driver.Navigate()
+                      .GoToUrl(website);
 
-                if (newestFile is not null && newestFile.CreationTime >= DateTime.UtcNow.AddMinutes(-1))
+                var textField = driver.FindElement(By.Id(inputId));
+                if (textField.Displayed)
+                    textField.SendKeys(link);
+
+                var searchButton = driver.FindElement(By.XPath(searchButtonSelector));
+                if (searchButton.Displayed)
+                    searchButton.Click();
+
+                var downloadButton = wait.Until(SeleniumExtras.WaitHelpers.ExpectedConditions.ElementIsVisible(By.XPath(downloadButtonSelector)));
+                if (downloadButton.Displayed)
+                    downloadButton.Click();
+
+                Thread.Sleep(15000);
+
+                var targetDirectory = new DirectoryInfo(downloadsFolderPath);
+                var files = targetDirectory.GetFiles();
+
+                files = files.Where(file => !file.Attributes.HasFlag(FileAttributes.Directory)).ToArray();
+
+                if (files.Length > 0)
                 {
-                    Log.Information($"Copying downloaded file: {newestFile.Name}");
-                    newestFile.CopyTo($"{downloadedSongsFolder}/{newestFile.Name}", true);
+                    var newestFile = files.OrderByDescending(file => file.CreationTime)
+                                          .FirstOrDefault();
 
-                    Log.Information($"Deleting downloaded file: {newestFile.Name}");
-                    newestFile.Delete();
+                    if (newestFile is not null && newestFile.CreationTime >= DateTime.UtcNow.AddMinutes(-1))
+                    {
+                        Log.Information($"Copying downloaded file: {newestFile.Name}");
+                        newestFile.CopyTo($"{downloadedSongsFolder}/{newestFile.Name}", true);
 
-                    Log.Information($"Successfully deleted file: {newestFile.Name}");
+                        Log.Information($"Deleting downloaded file: {newestFile.Name}");
+                        newestFile.Delete();
+
+                        Log.Information($"Successfully deleted file: {newestFile.Name}");
+                    }
+                    else
+                    {
+                        Log.Error($"No song downloaded");
+                        notDownloadedLinks.Add(link);
+                        continue;
+                    }
                 }
                 else
                 {
@@ -78,34 +91,28 @@ using (var driver = new ChromeDriver(fullDriverPath))
                     notDownloadedLinks.Add(link);
                     continue;
                 }
-            }
-            else
-            {
-                Log.Error($"No song downloaded");
-                notDownloadedLinks.Add(link);
-                continue;
-            }
 
-            Log.Information($"Successfully downloaded: {link}");
+                Log.Information($"Successfully downloaded: {link}");
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"Failed to download: {link}");
+                Log.Error($"Exception: {ex.Message}");
+                notDownloadedLinks.Add(link);
+            }
+        }
+
+        try
+        {
+            File.WriteAllLines($"../../../{errorLinksFile}", notDownloadedLinks);
         }
         catch (Exception ex)
         {
-            Log.Error($"Failed to download: {link}");
-            Log.Error($"Exception: {ex.Message}");
-            notDownloadedLinks.Add(link);
+            Log.Error($"An error occurred while writing to file: {ex.Message}");
         }
-    }
 
-    try
-    {
-        File.WriteAllLines($"../../../{errorLinksFile}", notDownloadedLinks);
+        Console.ReadKey();
     }
-    catch (Exception ex)
-    {
-        Log.Error($"An error occurred while writing to file: {ex.Message}");
-    }
-
-    Console.ReadKey();
 }
 
 static List<string> GetLinksFromFile(string file)
